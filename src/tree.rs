@@ -1,17 +1,43 @@
 use crate::token::JsonToken;
 use crate::token::JsonToken::{Colon, RightBrace, String};
-use std::ops::{Add, AddAssign};
-use std::slice::Iter;
-
+use std::cell::RefCell;
+use std::fmt::{write, Display, Formatter};
+use std::ops::{Add, Sub};
+use std::rc::Rc;
+#[derive(Debug)]
 pub struct JsonObject<'a> {
     children: Vec<KeyValue<'a>>,
 }
 
+impl<'a> Display for JsonObject<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{")?;
+        let len = self.children.len();
+        for (index, child) in self.children.iter().enumerate() {
+            write!(f, "{}", child)?;
+            if index != len - 1 {
+                write!(f, ",")?;
+            }
+        }
+        write!(f, "}}")
+    }
+}
+
+#[derive(Debug)]
 pub struct KeyValue<'a> {
     key: &'a str,
     value: JsonValue<'a>,
 }
 
+impl<'a> Display for KeyValue<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\"{}\"", self.key)?;
+        write!(f, ":")?;
+        write!(f, "{}", self.value)
+    }
+}
+
+#[derive(Debug)]
 pub enum JsonValue<'a> {
     Number(i64),
     String(&'a str),
@@ -22,69 +48,124 @@ pub enum JsonValue<'a> {
     Null,
 }
 
+impl<'a> Display for JsonValue<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JsonValue::Number(number) => write!(f, "{}", number),
+            JsonValue::String(str) => write!(f, "\"{}\"", str),
+            JsonValue::Object(obj) => write!(f, "{}", obj),
+            JsonValue::Array(arr) => write!(f, "{}", arr),
+            JsonValue::True => write!(f, "true"),
+            JsonValue::False => write!(f, "false"),
+            JsonValue::Null => write!(f, "null"),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum JsonArray {
     I64Array(Vec<i64>),
+}
+
+impl Display for JsonArray {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JsonArray::I64Array(arr) => write!(f, "{:?}", arr),
+        }
+    }
 }
 #[derive(Debug)]
 pub struct JsonTokenIter<'a> {
     tokens: &'a Vec<JsonToken<'a>>,
-    pos: usize,
+    pos: RefCell<usize>,
 }
 
 impl<'a> JsonTokenIter<'a> {
-    pub fn new(tokens: &'a Vec<JsonToken<'a>>) -> Self {
-        Self { tokens, pos: 0 }
+    pub fn new(tokens: &'a Vec<JsonToken<'a>>) -> Rc<Self> {
+        Rc::new(Self {
+            tokens,
+            pos: RefCell::new(0),
+        })
     }
 
-    pub fn parse(&mut self) -> JsonObject {
-        parse_object(self)
+    pub fn parse(self: Rc<Self>) -> JsonObject<'a> {
+        parse_object(Rc::clone(&self))
     }
 
     pub fn peek(&self) -> Option<&JsonToken<'a>> {
-        self.tokens.get(self.pos)
+        self.tokens.get(*self.pos.borrow())
     }
     pub fn peek_offset(&self, offset: usize) -> Option<&JsonToken<'a>> {
-        self.tokens.get(self.pos.add(offset))
+        self.tokens.get(*self.pos.borrow() + offset)
     }
 
-    pub fn next(&mut self) -> Option<&JsonToken<'a>> {
-        let cur = self.peek();
-        unsafe {
-            let pos = &mut *(self.pos as *mut usize);
-            *pos += 1;
+    pub fn next(&self) -> Option<&'a JsonToken<'a>> {
+        let pos = {
+            let pos = self.pos.borrow();
+            *pos
+        };
+        *self.pos.borrow_mut() += 1;
+        self.tokens.get(pos)
+    }
+
+    pub fn next_offset(&self, offset: usize) -> Option<&'a JsonToken<'a>> {
+        let pos = {
+            let pos = self.pos.borrow();
+            *pos + offset
+        };
+        *self.pos.borrow_mut() = pos;
+        self.tokens.get(pos)
+    }
+    pub fn last(&self) -> Option<&'a JsonToken<'a>> {
+        let pos = {
+            let pos = self.pos.borrow();
+            (*pos as isize) - 1
+        };
+        if pos < 0 {
+            panic!("pos is 0 cannot get last")
         }
-        cur
-    }
-
-    pub fn next_offset(&mut self, offset: usize) -> Option<&JsonToken<'a>> {
-        self.pos.add_assign(1);
-        self.peek()
+        *self.pos.borrow_mut() = pos as usize;
+        self.tokens.get(pos as usize)
     }
 }
-fn parse_object<'a>(tokens: &mut JsonTokenIter<'a>) -> JsonObject<'a> {
+fn parse_object(tokens: Rc<JsonTokenIter>) -> JsonObject {
     let mut obj = JsonObject { children: vec![] };
     match tokens.next() {
         Some(JsonToken::LeftBrace) => {}
-        Some(_) => panic!("tokens should be {{"),
+        Some(token) => {
+            dbg!(token);
+            panic!("it should be {{")
+        }
         None => panic!("tokens should not be empty"),
     }
 
     loop {
-        match tokens.peek() {
+        match tokens.next() {
             Some(RightBrace) => break,
             Some(String(key)) => {
-                let colon_token = tokens.peek_offset(1);
+                let colon_token = tokens.next();
                 if colon_token != Some(&Colon) {
                     panic!("Expected ':' after key");
                 } else {
                     obj.children.push(KeyValue {
                         key,
-                        value: parse_value(tokens),
+                        value: parse_value(Rc::clone(&tokens)),
                     });
-                    tokens.next_offset(2);
+                }
+                let next = tokens.next().expect("it should be empty after key value");
+                match next {
+                    JsonToken::Comma => {}
+                    RightBrace => break,
+                    _ => {
+                        dbg!(next);
+                        panic!("Unexpected token");
+                    }
                 }
             }
-            Some(_) => panic!("Unexpected token"),
+            Some(token) => {
+                dbg!(token);
+                panic!("Unexpected token")
+            }
             None => panic!("Unexpected end of tokens"),
         }
     }
@@ -92,20 +173,26 @@ fn parse_object<'a>(tokens: &mut JsonTokenIter<'a>) -> JsonObject<'a> {
     obj
 }
 
-fn parse_value<'a>(tokens: &mut JsonTokenIter<'a>) -> JsonValue<'a> {
+fn parse_value(tokens: Rc<JsonTokenIter>) -> JsonValue {
     let value = match tokens.next().expect("") {
         String(str) => JsonValue::String(str),
         JsonToken::Number(num) => JsonValue::Number(*num),
         JsonToken::True => JsonValue::True,
         JsonToken::False => JsonValue::False,
         JsonToken::Null => JsonValue::Null,
-        JsonToken::LeftBrace => JsonValue::Object(parse_object(tokens)),
-        JsonToken::LeftBracket => JsonValue::Array(parse_array(tokens)),
+        JsonToken::LeftBrace => {
+            tokens.last();
+            JsonValue::Object(parse_object(tokens))
+        }
+        JsonToken::LeftBracket => {
+            tokens.last();
+            JsonValue::Array(parse_array(tokens))
+        }
         _ => panic!("invaild json value"),
     };
     value
 }
 
-fn parse_array(iter: &JsonTokenIter) -> JsonArray {
+fn parse_array(iter: Rc<JsonTokenIter>) -> JsonArray {
     JsonArray::I64Array(vec![1, 2, 3])
 }
