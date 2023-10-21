@@ -17,6 +17,21 @@ pub enum JsonToken<'a> {
     RightBracket,
 }
 
+/// 将给定的 origin 字符串解析为 JsonToken
+/// 所有字符串都使用 &'a str 与 origin 字符串引用统一生命周期
+/// i8,i16,..,u8,u16,..,f32,f64 均使用赋值
+///
+/// # Arguments
+///
+/// * `origin`:
+///
+/// returns: Option<Vec<JsonToken, Global>>
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
 pub fn parse_to_tokens(origin: &str) -> Option<Vec<JsonToken>> {
     let mut tokens: Vec<JsonToken> = vec![];
     let mut char_indices = origin.char_indices();

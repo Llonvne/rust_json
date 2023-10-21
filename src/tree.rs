@@ -1,8 +1,7 @@
 use crate::token::JsonToken;
 use crate::token::JsonToken::{Colon, RightBrace, String};
 use std::cell::RefCell;
-use std::fmt::{write, Display, Formatter};
-use std::ops::{Add, Sub};
+use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 #[derive(Debug)]
 pub struct JsonObject<'a> {
@@ -39,10 +38,10 @@ impl<'a> Display for KeyValue<'a> {
 
 #[derive(Debug)]
 pub enum JsonValue<'a> {
-    Number(i64),
-    String(&'a str),
-    Object(JsonObject<'a>),
-    Array(JsonArray<'a>),
+    Number(Box<i64>),
+    String(Box<&'a str>),
+    Object(Box<JsonObject<'a>>),
+    Array(Box<JsonArray<'a>>),
     True,
     False,
     Null,
@@ -181,18 +180,18 @@ fn parse_object(tokens: Rc<JsonTokenIter>) -> JsonObject {
 
 fn parse_value(tokens: Rc<JsonTokenIter>) -> JsonValue {
     let value = match tokens.next().expect("") {
-        String(str) => JsonValue::String(str),
-        JsonToken::Number(num) => JsonValue::Number(*num),
+        String(str) => JsonValue::String(Box::new(str)),
+        JsonToken::Number(num) => JsonValue::Number(Box::new(*num)),
         JsonToken::True => JsonValue::True,
         JsonToken::False => JsonValue::False,
         JsonToken::Null => JsonValue::Null,
         JsonToken::LeftBrace => {
             tokens.last();
-            JsonValue::Object(parse_object(tokens))
+            JsonValue::Object(Box::new(parse_object(tokens)))
         }
         JsonToken::LeftBracket => {
             tokens.last();
-            JsonValue::Array(parse_array(tokens))
+            JsonValue::Array(Box::new(parse_array(tokens)))
         }
         _ => panic!("invaild json value"),
     };
