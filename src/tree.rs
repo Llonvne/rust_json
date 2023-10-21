@@ -42,7 +42,7 @@ pub enum JsonValue<'a> {
     Number(i64),
     String(&'a str),
     Object(JsonObject<'a>),
-    Array(JsonArray),
+    Array(JsonArray<'a>),
     True,
     False,
     Null,
@@ -63,15 +63,21 @@ impl<'a> Display for JsonValue<'a> {
 }
 
 #[derive(Debug)]
-pub enum JsonArray {
-    I64Array(Vec<i64>),
+pub struct JsonArray<'a> {
+    array: Vec<JsonValue<'a>>,
 }
 
-impl Display for JsonArray {
+impl<'a> Display for JsonArray<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            JsonArray::I64Array(arr) => write!(f, "{:?}", arr),
+        write!(f, "[")?;
+        let len = self.array.len();
+        for (index, value) in self.array.iter().enumerate() {
+            write!(f, "{}", value)?;
+            if index != len - 1 {
+                write!(f, ",")?;
+            }
         }
+        write!(f, "]")
     }
 }
 #[derive(Debug)]
@@ -194,5 +200,16 @@ fn parse_value(tokens: Rc<JsonTokenIter>) -> JsonValue {
 }
 
 fn parse_array(iter: Rc<JsonTokenIter>) -> JsonArray {
-    JsonArray::I64Array(vec![1, 2, 3])
+    let mut arr = JsonArray { array: vec![] };
+
+    loop {
+        match iter.next() {
+            None => panic!("it should be None"),
+            Some(token) => match token {
+                JsonToken::RightBracket => break,
+                _ => arr.array.push(parse_value(Rc::clone(&iter))),
+            },
+        }
+    }
+    arr
 }
