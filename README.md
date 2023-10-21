@@ -56,4 +56,6 @@ pub struct JsonArray<'a> {
 
 The default Display trait will represent the output of a JSON string without any spaces or newline characters.
 
+For all parsed string objects, they will be interpreted as string references (with JsonToken acting as an intermediary layer), and any numerical objects will be copied.
+
 

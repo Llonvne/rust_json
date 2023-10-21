@@ -1,9 +1,10 @@
 use crate::array::JsonArray;
 use crate::keyvalue::KeyValue;
 use crate::object::JsonObject;
-use crate::token::JsonToken::{Colon, RightBrace, String};
+use crate::token::JsonToken::{Colon, LeftBrace, RightBrace, String};
 use crate::token::{JsonToken, JsonTokenStream};
 use crate::value::JsonValue;
+use crate::value::JsonValue::{Array, Object};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -22,8 +23,13 @@ impl<'a> Parser<'a> {
         })
     }
 
-    pub fn parse(self: Rc<Self>) -> JsonObject<'a> {
-        parse_object(Rc::clone(&self))
+    pub fn parse(self: Rc<Self>) -> JsonValue<'a> {
+        let first = self.tokens.first().expect("tokens should be empty");
+        match first {
+            LeftBrace => Object(Box::new(parse_object(Rc::clone(&self)))),
+            JsonToken::LeftBracket => Array(Box::new(parse_array(Rc::clone(&self)))),
+            _ => panic!("it should be [ or }}"),
+        }
     }
 
     fn peek(&self) -> Option<&JsonToken<'a>> {

@@ -11,7 +11,7 @@ pub enum JsonToken<'a> {
     RightBrace,
     DoubleQuote,
     Comma,
-    Number(i64),
+    Number(f64),
     Colon,
     True,
     False,
@@ -49,7 +49,7 @@ pub fn parse_to_tokens(origin: &str) -> Option<JsonTokenStream> {
                 tokens.push(String(str));
             }
             // number
-            '0'..='9' => {
+            '0'..='9' | '+' | '-' => {
                 if let Some((number, _)) = parse_number(&mut char_indices, index, origin) {
                     tokens.push(Number(number));
                 }
@@ -97,15 +97,25 @@ pub fn parse_to_tokens(origin: &str) -> Option<JsonTokenStream> {
 }
 
 fn parse_number(
-    char_indices: &mut std::str::CharIndices<'_>,
+    char_indices: &mut CharIndices<'_>,
     current_index: usize,
     origin: &str,
-) -> Option<(i64, usize)> {
+) -> Option<(f64, usize)> {
     let mut peek = char_indices.clone().peekable();
     let start = current_index;
     let mut end = current_index;
+    let mut has_dot = false;
+
     for (_index, char) in peek {
-        if char.is_ascii_digit() {
+        if char == '.' {
+            if has_dot {
+                panic!("already has dot")
+            } else {
+                has_dot = true;
+            }
+        }
+
+        if char.is_ascii_digit() || char == '.' {
             end = _index;
         } else {
             break;
@@ -113,12 +123,12 @@ fn parse_number(
     }
 
     // Sync the state to char_indices
-    if end - start > 1 {
+    if end - start > 0 {
         char_indices.nth(end - start - 1);
     }
 
     let number_str = &origin[start..end + 1];
-    match number_str.parse::<i64>() {
+    match number_str.parse::<f64>() {
         Ok(number) => Some((number, end)),
         Err(_) => panic!("parse number error"),
     }
@@ -128,9 +138,19 @@ fn parse_key(input: &str) -> Option<(&str, usize)> {
     let mut char_indices = input.char_indices();
     let mut start_index = 0;
     let mut end_index = None;
+    let mut ignore_next = false;
 
     for (index, char) in char_indices {
+        if ignore_next {
+            ignore_next = false;
+            end_index = Some(index);
+            continue;
+        }
+
         match char {
+            '\\' => {
+                ignore_next = true;
+            }
             '"' => {
                 // This is the closing quote of the key
                 end_index = Some(index);

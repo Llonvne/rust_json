@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub enum JsonValue<'a> {
-    Number(Box<i64>),
+    Number(Box<f64>),
     String(Box<&'a str>),
     Object(Box<JsonObject<'a>>),
     Array(Box<JsonArray<'a>>),
@@ -13,11 +13,11 @@ pub enum JsonValue<'a> {
     Null,
 }
 
-impl <'a> JsonValue<'a> {
-    pub fn try_as_array(&self)->Option<&JsonArray>{
+impl<'a> JsonValue<'a> {
+    pub fn try_as_array(&self) -> Option<&JsonArray> {
         match self {
             JsonValue::Array(array) => Some(array),
-            _ => None
+            _ => None,
         }
     }
 }
