@@ -13,6 +13,15 @@ pub enum JsonValue<'a> {
     Null,
 }
 
+impl <'a> JsonValue<'a> {
+    pub fn try_as_array(&self)->Option<&JsonArray>{
+        match self {
+            JsonValue::Array(array) => Some(array),
+            _ => None
+        }
+    }
+}
+
 impl<'a> Display for JsonValue<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
