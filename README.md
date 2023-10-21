@@ -54,4 +54,6 @@ pub struct JsonArray<'a> {
 }
 ```
 
+The default Display trait will represent the output of a JSON string without any spaces or newline characters.
+
 

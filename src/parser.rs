@@ -1,92 +1,21 @@
-use crate::token::JsonToken;
+use crate::array::JsonArray;
+use crate::keyvalue::KeyValue;
+use crate::object::JsonObject;
 use crate::token::JsonToken::{Colon, RightBrace, String};
+use crate::token::{JsonToken, JsonTokenStream};
+use crate::value::JsonValue;
 use std::cell::RefCell;
-use std::fmt::{Display, Formatter};
 use std::rc::Rc;
-#[derive(Debug)]
-pub struct JsonObject<'a> {
-    children: Vec<KeyValue<'a>>,
-}
-
-impl<'a> Display for JsonObject<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{")?;
-        let len = self.children.len();
-        for (index, child) in self.children.iter().enumerate() {
-            write!(f, "{}", child)?;
-            if index != len - 1 {
-                write!(f, ",")?;
-            }
-        }
-        write!(f, "}}")
-    }
-}
 
 #[derive(Debug)]
-pub struct KeyValue<'a> {
-    key: &'a str,
-    value: JsonValue<'a>,
-}
-
-impl<'a> Display for KeyValue<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\"{}\"", self.key)?;
-        write!(f, ":")?;
-        write!(f, "{}", self.value)
-    }
-}
-
-#[derive(Debug)]
-pub enum JsonValue<'a> {
-    Number(Box<i64>),
-    String(Box<&'a str>),
-    Object(Box<JsonObject<'a>>),
-    Array(Box<JsonArray<'a>>),
-    True,
-    False,
-    Null,
-}
-
-impl<'a> Display for JsonValue<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            JsonValue::Number(number) => write!(f, "{}", number),
-            JsonValue::String(str) => write!(f, "\"{}\"", str),
-            JsonValue::Object(obj) => write!(f, "{}", obj),
-            JsonValue::Array(arr) => write!(f, "{}", arr),
-            JsonValue::True => write!(f, "true"),
-            JsonValue::False => write!(f, "false"),
-            JsonValue::Null => write!(f, "null"),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct JsonArray<'a> {
-    array: Vec<JsonValue<'a>>,
-}
-
-impl<'a> Display for JsonArray<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[")?;
-        let len = self.array.len();
-        for (index, value) in self.array.iter().enumerate() {
-            write!(f, "{}", value)?;
-            if index != len - 1 {
-                write!(f, ",")?;
-            }
-        }
-        write!(f, "]")
-    }
-}
-#[derive(Debug)]
-pub struct JsonTokenIter<'a> {
+pub struct Parser<'a> {
     tokens: &'a Vec<JsonToken<'a>>,
     pos: RefCell<usize>,
 }
 
-impl<'a> JsonTokenIter<'a> {
-    pub fn new(tokens: &'a Vec<JsonToken<'a>>) -> Rc<Self> {
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &'a JsonTokenStream) -> Rc<Self> {
+        let tokens = &tokens.tokens;
         Rc::new(Self {
             tokens,
             pos: RefCell::new(0),
@@ -97,14 +26,14 @@ impl<'a> JsonTokenIter<'a> {
         parse_object(Rc::clone(&self))
     }
 
-    pub fn peek(&self) -> Option<&JsonToken<'a>> {
+    fn peek(&self) -> Option<&JsonToken<'a>> {
         self.tokens.get(*self.pos.borrow())
     }
-    pub fn peek_offset(&self, offset: usize) -> Option<&JsonToken<'a>> {
+    fn peek_offset(&self, offset: usize) -> Option<&JsonToken<'a>> {
         self.tokens.get(*self.pos.borrow() + offset)
     }
 
-    pub fn next(&self) -> Option<&'a JsonToken<'a>> {
+    fn next(&self) -> Option<&'a JsonToken<'a>> {
         let pos = {
             let pos = self.pos.borrow();
             *pos
@@ -113,7 +42,7 @@ impl<'a> JsonTokenIter<'a> {
         self.tokens.get(pos)
     }
 
-    pub fn next_offset(&self, offset: usize) -> Option<&'a JsonToken<'a>> {
+    fn next_offset(&self, offset: usize) -> Option<&'a JsonToken<'a>> {
         let pos = {
             let pos = self.pos.borrow();
             *pos + offset
@@ -121,7 +50,7 @@ impl<'a> JsonTokenIter<'a> {
         *self.pos.borrow_mut() = pos;
         self.tokens.get(pos)
     }
-    pub fn last(&self) -> Option<&'a JsonToken<'a>> {
+    fn last(&self) -> Option<&'a JsonToken<'a>> {
         let pos = {
             let pos = self.pos.borrow();
             (*pos as isize) - 1
@@ -133,7 +62,7 @@ impl<'a> JsonTokenIter<'a> {
         self.tokens.get(pos as usize)
     }
 }
-fn parse_object(tokens: Rc<JsonTokenIter>) -> JsonObject {
+fn parse_object(tokens: Rc<Parser>) -> JsonObject {
     let mut obj = JsonObject { children: vec![] };
     match tokens.next() {
         Some(JsonToken::LeftBrace) => {}
@@ -178,7 +107,7 @@ fn parse_object(tokens: Rc<JsonTokenIter>) -> JsonObject {
     obj
 }
 
-fn parse_value(tokens: Rc<JsonTokenIter>) -> JsonValue {
+fn parse_value(tokens: Rc<Parser>) -> JsonValue {
     let value = match tokens.next().expect("") {
         String(str) => JsonValue::String(Box::new(str)),
         JsonToken::Number(num) => JsonValue::Number(Box::new(*num)),
@@ -193,12 +122,12 @@ fn parse_value(tokens: Rc<JsonTokenIter>) -> JsonValue {
             tokens.last();
             JsonValue::Array(Box::new(parse_array(tokens)))
         }
-        _ => panic!("invaild json value"),
+        _ => panic!("invalid json value"),
     };
     value
 }
 
-fn parse_array(iter: Rc<JsonTokenIter>) -> JsonArray {
+fn parse_array(iter: Rc<Parser>) -> JsonArray {
     let mut arr = JsonArray { array: vec![] };
 
     loop {

@@ -1,6 +1,10 @@
 use std::str::CharIndices;
 use JsonToken::*;
 
+pub struct JsonTokenStream<'a> {
+    pub(crate) tokens: Vec<JsonToken<'a>>,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum JsonToken<'a> {
     LeftBrace,
@@ -32,7 +36,7 @@ pub enum JsonToken<'a> {
 /// ```
 ///
 /// ```
-pub fn parse_to_tokens(origin: &str) -> Option<Vec<JsonToken>> {
+pub fn parse_to_tokens(origin: &str) -> Option<JsonTokenStream> {
     let mut tokens: Vec<JsonToken> = vec![];
     let mut char_indices = origin.char_indices();
 
@@ -89,7 +93,7 @@ pub fn parse_to_tokens(origin: &str) -> Option<Vec<JsonToken>> {
             _ => {}
         }
     }
-    Some(tokens)
+    Some(JsonTokenStream { tokens })
 }
 
 fn parse_number(
