@@ -1,6 +1,6 @@
 use std::str::CharIndices;
 use JsonToken::*;
-
+#[derive(Debug)]
 pub struct JsonTokenStream<'a> {
     pub(crate) tokens: Vec<JsonToken<'a>>,
 }
@@ -20,24 +20,8 @@ pub enum JsonToken<'a> {
     LeftBracket,
     RightBracket,
 }
-
-/// 将给定的 origin 字符串解析为 JsonToken
-/// 所有字符串都使用 &'a str 与 origin 字符串引用统一生命周期
-/// i8,i16,..,u8,u16,..,f32,f64 均使用赋值
-///
-/// # Arguments
-///
-/// * `origin`:
-///
-/// returns: Option<Vec<JsonToken, Global>>
-///
-/// # Examples
-///
-/// ```
-///
-/// ```
 pub fn parse_to_tokens(origin: &str) -> Option<JsonTokenStream> {
-    let mut tokens: Vec<JsonToken> = vec![];
+    let mut tokens: Vec<JsonToken> = Vec::new();
     let mut char_indices = origin.char_indices();
 
     while let Some((index, char)) = char_indices.next() {
@@ -135,8 +119,8 @@ fn parse_number(
 }
 
 fn parse_key(input: &str) -> Option<(&str, usize)> {
-    let mut char_indices = input.char_indices();
-    let mut start_index = 0;
+    let char_indices = input.char_indices();
+    let start_index = 0;
     let mut end_index = None;
     let mut ignore_next = false;
 
@@ -160,7 +144,7 @@ fn parse_key(input: &str) -> Option<(&str, usize)> {
         }
     }
 
-    match (end_index) {
+    match end_index {
         Some(end) => Some((&input[start_index..end], end)),
         _ => panic!("parse key error"),
     }
@@ -186,7 +170,8 @@ fn parse_const(input: &str, const_str: &str) -> Option<usize> {
 
 fn skip_whitespace(chars: &mut CharIndices) {
     let mut whitespace_count = 0;
-    for (_, char) in chars.clone() {
+    let chars_clone = chars.clone();
+    for (_, char) in chars_clone {
         if char.is_ascii_whitespace() {
             whitespace_count += 1;
         } else {
@@ -195,5 +180,80 @@ fn skip_whitespace(chars: &mut CharIndices) {
     }
     if whitespace_count > 0 {
         chars.nth(whitespace_count - 1); // -1 because nth is 0-indexed
+    }
+}
+
+/// test for parse_to_tokens
+mod tests_parse_to_tokens {
+    use super::*;
+
+    #[test]
+    fn test_parse_to_tokens() {
+        let json = r#"
+        {
+            "name": "Jack (\"Bee\") Nimble", 
+            "format": {
+                "type":       "rect", 
+                "width":      1920, 
+                "height":     1080, 
+                "interlace":  false,
+                "array": [1,2,3,4,5,6,7,8,9,10]
+            }
+        }"#;
+        let tokens = parse_to_tokens(json).unwrap();
+        assert_eq!(
+            tokens.tokens,
+            vec![
+                LeftBrace,
+                String("name"),
+                Colon,
+                String("Jack (\\\"Bee\\\") Nimble"),
+                Comma,
+                String("format"),
+                Colon,
+                LeftBrace,
+                String("type"),
+                Colon,
+                String("rect"),
+                Comma,
+                String("width"),
+                Colon,
+                Number(1920.0),
+                Comma,
+                String("height"),
+                Colon,
+                Number(1080.0),
+                Comma,
+                String("interlace"),
+                Colon,
+                False,
+                Comma,
+                String("array"),
+                Colon,
+                LeftBracket,
+                Number(1.0),
+                Comma,
+                Number(2.0),
+                Comma,
+                Number(3.0),
+                Comma,
+                Number(4.0),
+                Comma,
+                Number(5.0),
+                Comma,
+                Number(6.0),
+                Comma,
+                Number(7.0),
+                Comma,
+                Number(8.0),
+                Comma,
+                Number(9.0),
+                Comma,
+                Number(10.0),
+                RightBracket,
+                RightBrace,
+                RightBrace,
+            ]
+        );
     }
 }

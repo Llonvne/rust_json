@@ -1,7 +1,7 @@
 use crate::value::JsonValue;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct KeyValue<'a> {
     pub key: &'a str,
     pub value: JsonValue<'a>,

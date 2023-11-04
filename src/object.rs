@@ -3,7 +3,7 @@ use crate::value::JsonValue;
 use std::fmt::{Display, Formatter};
 use std::slice::Iter;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct JsonObject<'a> {
     pub(crate) children: Vec<KeyValue<'a>>,
 }

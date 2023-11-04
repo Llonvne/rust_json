@@ -2,7 +2,7 @@ use crate::array::JsonArray;
 use crate::object::JsonObject;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum JsonValue<'a> {
     Number(Box<f64>),
     String(Box<&'a str>),
@@ -11,6 +11,7 @@ pub enum JsonValue<'a> {
     True,
     False,
     Null,
+    Empty,
 }
 
 impl<'a> JsonValue<'a> {
@@ -32,6 +33,7 @@ impl<'a> Display for JsonValue<'a> {
             JsonValue::True => write!(f, "true"),
             JsonValue::False => write!(f, "false"),
             JsonValue::Null => write!(f, "null"),
+            JsonValue::Empty => write!(f, ""),
         }
     }
 }
