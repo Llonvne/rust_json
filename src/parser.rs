@@ -18,20 +18,20 @@ pub struct Parser<'a> {
     pos: RefCell<usize>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum JsonParserError<'a> {
     UnexpectedToken(UnexpectedTokenErrorDecr<'a>),
     InternalJsonParserError(JsonParserInternalError),
     UnexpectedEndOfTokens,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct UnexpectedTokenErrorDecr<'a> {
     expect: &'static str,
     actual: &'a JsonToken<'a>,
     msg: &'static str,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum JsonParserInternalError {
     TokenIndexOutOfRange,
 }
@@ -49,19 +49,13 @@ impl<'a> Parser<'a> {
         let first = self.tokens.first();
         match first {
             Some(first) => match first {
-                LeftBrace => match parse_object(Rc::clone(&self)) {
-                    Ok(obj) => Ok(Object(Box::new(obj))),
-                    Err(err) => Err(err),
-                },
-                LeftBracket => Ok(Array(Box::new(match parse_array(Rc::clone(&self)) {
-                    Ok(value) => value,
-                    Err(e) => Err(e)?,
-                }))),
+                LeftBrace => parse_object(Rc::clone(&self)).map(|obj| Object(Box::new(obj))),
+                LeftBracket => parse_array(Rc::clone(&self)).map(|arr| Array(Box::new(arr))),
                 token => Err(UnexpectedToken(UnexpectedTokenErrorDecr {
                     expect: "{ or [",
                     actual: token,
                     msg: "it should be { or [ on the first token for json value",
-                })),
+                }))?,
             },
             None => Err(UnexpectedEndOfTokens)?,
         }
@@ -156,9 +150,9 @@ fn parse_object(tokens: Rc<Parser>) -> Result<JsonObject, JsonParserError> {
                 }
             }
             Some(token) => Err(UnexpectedToken(UnexpectedTokenErrorDecr {
-                expect: "string",
+                expect: "value",
                 actual: token,
-                msg: "it should be string for key or }",
+                msg: "it should be value after :",
             }))?,
             None => Err(UnexpectedEndOfTokens)?,
         }
@@ -168,7 +162,6 @@ fn parse_object(tokens: Rc<Parser>) -> Result<JsonObject, JsonParserError> {
 }
 
 fn parse_value(tokens: Rc<Parser>) -> Result<JsonValue, JsonParserError> {
-    let token = tokens.next();
     match tokens.next() {
         None => Err(UnexpectedEndOfTokens)?,
         Some(token) => match token {
@@ -178,24 +171,20 @@ fn parse_value(tokens: Rc<Parser>) -> Result<JsonValue, JsonParserError> {
             False => Ok(JsonValue::False),
             Null => Ok(JsonValue::Null),
             LeftBrace => {
-                match tokens.last() {
-                    Ok(_) => {}
-                    Err(e) => Err(InternalJsonParserError(e))?,
-                }
-                match parse_object(tokens) {
-                    Ok(obj) => Ok(Object(Box::new(obj))),
-                    Err(e) => Err(e),
-                }
+                tokens.last().map_err(InternalJsonParserError)?;
+                parse_object(Rc::clone(&tokens)).map(|obj| Object(Box::new(obj)))
             }
             LeftBracket => {
-                match tokens.last() {
-                    Ok(_) => {}
-                    Err(e) => Err(InternalJsonParserError(e))?,
-                }
-                Ok(Array(Box::new(match parse_array(tokens) {
-                    Ok(arr) => arr,
-                    Err(e) => Err(e)?,
-                })))
+                tokens.last().map_err(InternalJsonParserError)?;
+                parse_array(Rc::clone(&tokens)).map(|arr| Array(Box::new(arr)))
+            }
+            RightBracket => {
+                tokens.last().map_err(InternalJsonParserError)?;
+                Ok(Empty)
+            }
+            RightBrace => {
+                tokens.last().map_err(InternalJsonParserError)?;
+                Ok(Empty)
             }
             _ => Err(UnexpectedToken(UnexpectedTokenErrorDecr {
                 expect: "string, number, true, false, null, {, [",
@@ -208,6 +197,7 @@ fn parse_value(tokens: Rc<Parser>) -> Result<JsonValue, JsonParserError> {
 
 fn parse_array(iter: Rc<Parser>) -> Result<JsonArray, JsonParserError> {
     let mut arr = JsonArray { array: vec![] };
+
     loop {
         match iter.next() {
             None => Err(UnexpectedEndOfTokens)?,
@@ -215,10 +205,9 @@ fn parse_array(iter: Rc<Parser>) -> Result<JsonArray, JsonParserError> {
                 RightBracket => {
                     break;
                 }
-                _ => arr.array.push(match parse_value(Rc::clone(&iter)) {
-                    Ok(value) => value,
-                    Err(e) => Err(e)?,
-                }),
+x                _token => parse_value(Rc::clone(&iter)).map(|value| {
+                    arr.array.push(value);
+                })?,
             },
         }
     }

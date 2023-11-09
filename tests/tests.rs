@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod test {
-    use rust_json::parser::Parser;
+    use rust_json::parser::{JsonParserError, Parser};
     use rust_json::token::parse_to_tokens;
+    use rust_json::value::JsonValue;
     use std::fs;
     use std::time::Instant;
 
@@ -12,8 +13,8 @@ mod test {
 
         let mut token_times = vec![];
         let mut parse_times = vec![];
-        let time = 10000;
-        for i in 0..time {
+        let time = 1;
+        for _i in 0..time {
             let json_text = fs::read_to_string(format!("tests/json{}.json", 1));
             if let Ok(text) = json_text {
                 let start = Instant::now();
@@ -23,6 +24,7 @@ mod test {
 
                 let start = Instant::now();
                 let _object = Parser::new(&tokens).parse();
+                println!("{}", _object.unwrap());
                 let parse_time = start.elapsed();
                 parse_times.push(parse_time);
             } else {
