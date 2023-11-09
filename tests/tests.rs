@@ -1,10 +1,7 @@
 #[cfg(test)]
 mod test {
-    use rust_json::parser::{JsonParserError, Parser};
+    use rust_json::parser::Parser;
     use rust_json::token::parse_to_tokens;
-    use rust_json::value::JsonValue;
-    use std::fs;
-    use std::time::Instant;
 
     #[test]
     fn test() {

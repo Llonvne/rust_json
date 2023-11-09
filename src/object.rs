@@ -10,8 +10,9 @@ pub struct JsonObject<'a> {
 
 impl<'a> JsonObject<'a> {
     pub fn iter(&self) -> JsonObjectIter {
-        let iter = self.children.iter();
-        JsonObjectIter { iter }
+        JsonObjectIter {
+            iter: self.children.iter(),
+        }
     }
 
     pub fn get_by_key(&self, str: &str) -> Option<&'a JsonValue> {
