@@ -1,5 +1,8 @@
+use crate::token::TokenParseError::{KeyParseError, NumberParseError};
+use std::num::ParseFloatError;
 use std::str::CharIndices;
 use JsonToken::*;
+
 #[derive(Debug)]
 pub struct JsonTokenStream<'a> {
     pub(crate) tokens: Vec<JsonToken<'a>>,
@@ -20,7 +23,19 @@ pub enum JsonToken<'a> {
     LeftBracket,
     RightBracket,
 }
-pub fn parse_to_tokens(origin: &str) -> Option<JsonTokenStream> {
+#[derive(Debug, PartialEq)]
+pub enum TokenParseError {
+    KeyParseError,
+    NumberParseError(NumberParseErrorKind),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum NumberParseErrorKind {
+    DoubleDotInNumber,
+    NumberParseError(ParseFloatError),
+}
+
+pub fn parse_to_tokens(origin: &str) -> Result<JsonTokenStream, TokenParseError> {
     let mut tokens: Vec<JsonToken> = Vec::new();
     let mut char_indices = origin.char_indices();
 
@@ -34,9 +49,8 @@ pub fn parse_to_tokens(origin: &str) -> Option<JsonTokenStream> {
             }
             // number
             '0'..='9' | '+' | '-' => {
-                if let Some((number, _)) = parse_number(&mut char_indices, index, origin) {
-                    tokens.push(Number(number));
-                }
+                let (number, _) = parse_number(&mut char_indices, index, origin)?;
+                tokens.push(Number(number));
             }
             // 匹配 true false null
             't' | 'f' | 'n' => {
@@ -77,15 +91,15 @@ pub fn parse_to_tokens(origin: &str) -> Option<JsonTokenStream> {
             _ => {}
         }
     }
-    Some(JsonTokenStream { tokens })
+    Ok(JsonTokenStream { tokens })
 }
 
 fn parse_number(
     char_indices: &mut CharIndices<'_>,
     current_index: usize,
     origin: &str,
-) -> Option<(f64, usize)> {
-    let mut peek = char_indices.clone().peekable();
+) -> Result<(f64, usize), TokenParseError> {
+    let peek = char_indices.clone().peekable();
     let start = current_index;
     let mut end = current_index;
     let mut has_dot = false;
@@ -93,7 +107,7 @@ fn parse_number(
     for (_index, char) in peek {
         if char == '.' {
             if has_dot {
-                panic!("already has dot")
+                return Err(NumberParseError(NumberParseErrorKind::DoubleDotInNumber));
             } else {
                 has_dot = true;
             }
@@ -113,12 +127,12 @@ fn parse_number(
 
     let number_str = &origin[start..end + 1];
     match number_str.parse::<f64>() {
-        Ok(number) => Some((number, end)),
-        Err(_) => panic!("parse number error"),
+        Ok(number) => Ok((number, end)),
+        Err(e) => Err(NumberParseError(NumberParseErrorKind::NumberParseError(e))),
     }
 }
 
-fn parse_key(input: &str) -> Option<(&str, usize)> {
+fn parse_key(input: &str) -> Result<(&str, usize), TokenParseError> {
     let char_indices = input.char_indices();
     let start_index = 0;
     let mut end_index = None;
@@ -145,8 +159,8 @@ fn parse_key(input: &str) -> Option<(&str, usize)> {
     }
 
     match end_index {
-        Some(end) => Some((&input[start_index..end], end)),
-        _ => panic!("parse key error"),
+        Some(end) => Ok((&input[start_index..end], end)),
+        _ => Err(KeyParseError),
     }
 }
 
