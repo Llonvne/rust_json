@@ -205,7 +205,7 @@ fn parse_array(iter: Rc<Parser>) -> Result<JsonArray, JsonParserError> {
                 RightBracket => {
                     break;
                 }
-x                _token => parse_value(Rc::clone(&iter)).map(|value| {
+                _token => parse_value(Rc::clone(&iter)).map(|value| {
                     arr.array.push(value);
                 })?,
             },
